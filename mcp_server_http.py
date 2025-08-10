@@ -188,6 +188,10 @@ async def mcp_handler(request: Request):
                                             "type": "string",
                                             "description": "Optional: force specific service (dominos, opentable, uber)",
                                             "enum": ["dominos", "opentable", "uber"]
+                                        },
+                                        "force_new_session": {
+                                            "type": "boolean",
+                                            "description": "Optional: force starting a new session even if user has an active one. Use when user clearly switches context (e.g. from restaurant booking to ride booking)"
                                         }
                                     },
                                     "required": ["message"]
@@ -221,7 +225,8 @@ async def mcp_handler(request: Request):
                         result = await route_commerce_message_with_profiles(
                             user_id=user_id,
                             message=arguments.get("message"),
-                            force_service=arguments.get("force_service")
+                            force_service=arguments.get("force_service"),
+                            force_new_session=arguments.get("force_new_session", False)
                         )
                         
                         response_data = {

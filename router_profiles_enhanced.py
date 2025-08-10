@@ -395,7 +395,8 @@ Use this profile information to provide personalized service. The User ID can be
 async def route_commerce_message_with_profiles(
     user_id: str,
     message: str,
-    force_service: Optional[str] = None
+    force_service: Optional[str] = None,
+    force_new_session: Optional[bool] = False
 ) -> str:
     """
     Route commerce messages with automatic profile integration.
@@ -404,35 +405,54 @@ async def route_commerce_message_with_profiles(
         user_id: UUID from auth.users (references your profiles table)
         message: The user's message
         force_service: Optional - force routing to specific service
+        force_new_session: Optional - force starting a new session even if one exists
     
     Returns:
         Personalized response from the specialized service
     """
     
-    # First, check if user has any active session (prioritize continuing existing conversations)
+    # Check if user has an active session first
     existing_session = await get_any_active_session(user_id)
     
+    if force_new_session:
+        # Force new session - clean up any existing ones
+        print(f"🔄 Force new session requested - cleaning up existing sessions")
+        await cleanup_expired_sessions()  # Clean up old session
+        existing_session = None
+    
     if existing_session:
-        # Continue with existing session
-        print(f"🔄 Continuing existing {existing_session['service']} session")
-        session = existing_session
-        service = session["service"]
-    else:
-        # No active session, determine service from intent
-        if force_service and force_service in SERVICE_CONFIGS:
-            service = force_service
-        else:
-            service = classify_intent(message)
+        # Check if message contains keywords for a DIFFERENT service
+        intended_service = classify_intent(message)
         
-        if service == "general":
+        if intended_service != "general" and intended_service != existing_session['service']:
+            # User explicitly mentioned a different service - switch!
+            print(f"🔄 User switched from {existing_session['service']} to {intended_service} - starting new session")
+            await cleanup_expired_sessions()  # Clean up old session
+            session = None
+            service = intended_service
+        else:
+            # Continue with existing session (even if intent is "general")
+            print(f"🔄 Continuing existing {existing_session['service']} session")
+            session = existing_session
+            service = existing_session['service']
+    else:
+        # No active session - determine service from intent
+        if force_service and force_service in SERVICE_CONFIGS:
+            intended_service = force_service
+        else:
+            intended_service = classify_intent(message)
+        
+        if intended_service == "general":
             return "I specialize in commerce services like ordering food, booking rides, etc. For general questions, please use the main assistant."
         
-        if service not in SERVICE_CONFIGS:
+        if intended_service not in SERVICE_CONFIGS:
             available = ", ".join(SERVICE_CONFIGS.keys())
-            return f"Sorry, I don't support '{service}' yet. Available services: {available}"
+            return f"Sorry, I don't support '{intended_service}' yet. Available services: {available}"
         
-        # No existing session, will create new one below
+        # No existing session - start new one
+        print(f"🆕 No active session - starting new {intended_service} session")
         session = None
+        service = intended_service
     
     if session is None:
         # Create new session with profile integration
