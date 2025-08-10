@@ -315,6 +315,16 @@ async def call_background_claude_with_profile(session: Dict, new_message: str) -
         # Enhanced system prompt with profile context
         enhanced_system_prompt = service_config["system_prompt"]
         
+        # Add concise response style instruction to all prompts
+        enhanced_system_prompt += """
+
+RESPONSE STYLE:
+- Be clear, concise, and direct
+- Avoid unnecessary explanations or verbose descriptions  
+- Get straight to the point
+- Only provide essential information needed for the user's request
+"""
+        
         if profile:
             enhanced_system_prompt += f"""
 
@@ -331,7 +341,7 @@ Use this profile information to provide personalized service. The User ID can be
         # Call Claude with service MCP attached
         if "mcp_config" in service_config:
             try:
-                print(f"🔗 Attempting to connect to {session['service']} MCP at: {service_config['mcp_config']['url']}")
+                print(f"🤖 CLAUDE+{session['service'].upper()}: calling...")
                 response = anthropic_client.beta.messages.create(
                     model="claude-3-7-sonnet-20250219",
                     max_tokens=1500,
@@ -340,10 +350,9 @@ Use this profile information to provide personalized service. The User ID can be
                     betas=["mcp-client-2025-04-04"],  # Updated beta version
                     system=enhanced_system_prompt
                 )
-                print(f"✅ Successfully connected to {session['service']} MCP")
+                print(f"✅ CLAUDE+{session['service'].upper()}: success")
             except Exception as mcp_error:
-                print(f"❌ MCP connection error for {session['service']}: {type(mcp_error).__name__}: {str(mcp_error)}")
-                print(f"📝 MCP config attempted: {service_config['mcp_config']}")
+                print(f"❌ CLAUDE+{session['service'].upper()}: {type(mcp_error).__name__}")
                 # Fallback to regular Claude call without MCP
                 response = anthropic_client.messages.create(
                     model="claude-3-7-sonnet-20250219",
@@ -377,8 +386,7 @@ Use this profile information to provide personalized service. The User ID can be
         if not assistant_response.strip():
             assistant_response = f"I received a response from {session['service']} but couldn't process it properly."
         
-        print(f"📝 Final response length: {len(assistant_response)} chars")
-        print(f"🛠️ Tool results found: {len(tool_results)}")
+        print(f"🔧 TOOLS: {len(tool_results)} results, {len(assistant_response)} chars")
         
         # Add response to history and update session
         session["message_history"].append({"role": "assistant", "content": assistant_response})
@@ -411,6 +419,9 @@ async def route_commerce_message_with_profiles(
         Personalized response from the specialized service
     """
     
+    # 📥 ROUTER INPUT
+    print(f"📥 IN: user={user_id[:8]}... msg='{message[:50]}{'...' if len(message) > 50 else ''}'")
+    
     # Check if user has an active session first
     existing_session = await get_any_active_session(user_id)
     
@@ -426,13 +437,13 @@ async def route_commerce_message_with_profiles(
         
         if intended_service != "general" and intended_service != existing_session['service']:
             # User explicitly mentioned a different service - switch!
-            print(f"🔄 User switched from {existing_session['service']} to {intended_service} - starting new session")
+            print(f"🔄 SWITCH: {existing_session['service']} → {intended_service}")
             await cleanup_expired_sessions()  # Clean up old session
             session = None
             service = intended_service
         else:
             # Continue with existing session (even if intent is "general")
-            print(f"🔄 Continuing existing {existing_session['service']} session")
+            print(f"✅ CONTINUE: {existing_session['service']} session")
             session = existing_session
             service = existing_session['service']
     else:
@@ -450,24 +461,26 @@ async def route_commerce_message_with_profiles(
             return f"Sorry, I don't support '{intended_service}' yet. Available services: {available}"
         
         # No existing session - start new one
-        print(f"🆕 No active session - starting new {intended_service} session")
+        print(f"🆕 NEW: {intended_service} session")
         session = None
         service = intended_service
     
     if session is None:
         # Create new session with profile integration
-        print(f"🆕 Creating new {service} session with profile for user {user_id}")
         session = await create_session_with_profile(user_id, service, message)
         if not session:
-            print(f"❌ Failed to create session for {service}")
+            print(f"❌ FAILED: {service} session creation")
             return f"Sorry, I couldn't create a session for {service}. Please check your database connection and try again."
         
+        print(f"✅ CREATED: {service} session")
         # First call uses the enhanced handoff message
         response = await call_background_claude_with_profile(session, "")
     else:
         # Continue existing session
-        print(f"🔄 Continuing {service} session for user {user_id}")
         response = await call_background_claude_with_profile(session, message)
+    
+    # 📤 ROUTER OUTPUT
+    print(f"📤 OUT: {len(response)} chars → '{response[:100]}{'...' if len(response) > 100 else ''}'")
     
     return response
 
