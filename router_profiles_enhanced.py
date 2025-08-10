@@ -333,7 +333,7 @@ Use this profile information to provide personalized service. The User ID can be
             try:
                 print(f"🔗 Attempting to connect to {session['service']} MCP at: {service_config['mcp_config']['url']}")
                 response = anthropic_client.beta.messages.create(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-3-7-sonnet-20250219",
                     max_tokens=1500,
                     messages=session["message_history"],
                     mcp_servers=[service_config["mcp_config"]],
@@ -346,14 +346,14 @@ Use this profile information to provide personalized service. The User ID can be
                 print(f"📝 MCP config attempted: {service_config['mcp_config']}")
                 # Fallback to regular Claude call without MCP
                 response = anthropic_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-3-7-sonnet-20250219",
                     max_tokens=1000,
                     messages=session["message_history"],
                     system=f"{enhanced_system_prompt}\n\nNote: I don't have access to external tools right now, but I can still help you with general information about {session['service']}."
                 )
         else:
             response = anthropic_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 messages=session["message_history"],
                 system=enhanced_system_prompt
