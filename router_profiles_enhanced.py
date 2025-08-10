@@ -62,10 +62,12 @@ For restaurant reservations, follow this flow:
 
 2. SHOW OPTIONS: Present restaurant results to user
    - Show restaurant names, cuisines, locations, ratings
+   - IMPORTANT: Keep track of each restaurant's restaurant_id from the search results
    - Let user pick their preferred restaurant
 
 3. CHECK AVAILABILITY: When user picks a restaurant, call get_availability(user_id, restaurant_id, ...)
-   - Use the restaurant_id from search results
+   - CRITICAL: Use the exact restaurant_id from the search results in step 1
+   - NEVER search again by restaurant name - always use the restaurant_id
    - Specify party_size, days to search, time preferences
 
 4. BOOK RESERVATION: When user confirms, call book_reservation(user_id, ...) with all the slot details
@@ -79,14 +81,16 @@ IMPORTANT:
 - The search_restaurants() function handles account creation automatically
 - All functions return success/error status - check before proceeding
 - Never skip the availability check - booking requires availability tokens
+- CRITICAL: Once you have a restaurant_id from search results, ALWAYS use that exact restaurant_id for get_availability() - NEVER search again by restaurant name
 
 EXAMPLE FLOW:
 User: "Book sushi in NYC for 4 people tonight"
 1. search_restaurants(user_id, "New York", "sushi", party_size=4)
-2. [Show results to user]
-3. get_availability(user_id, chosen_restaurant_id, party_size=4) 
-4. [Show time slots to user]
-5. book_reservation(user_id, restaurant_id, slot_hash, datetime, token, 4, "New York")
+2. [Show results with restaurant names and IDs to user]
+3. User picks "Sushi Zen" → Use the restaurant_id from step 1 results (e.g. "rest_12345")
+4. get_availability(user_id, "rest_12345", party_size=4) ← Use restaurant_id, NOT restaurant name
+5. [Show time slots to user]
+6. book_reservation(user_id, "rest_12345", slot_hash, datetime, token, 4, "New York")
 
 ERROR HANDLING:
 - If search fails, suggest different location or cuisine
